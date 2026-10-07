@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: trolley-tracker-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_PATH
+        value: ./data/trolleys.db
+      - key: UPLOAD_DIR
+        value: ./uploads
