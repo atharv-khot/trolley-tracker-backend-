@@ -125,7 +125,8 @@ router.post('/', async (req, res) => {
       email_result: emailResult
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('DEBUG POST /maintenance ERROR:', err);
+    res.status(500).json({ error: err ? (err.message || String(err)) : 'Unknown error' });
   }
 });
 

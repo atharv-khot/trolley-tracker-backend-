@@ -7,6 +7,8 @@ const { generateId } = require('../utils/helpers');
 const { verifyToken, requireRole } = require('../middleware/auth');
 require('dotenv').config();
 
+const JWT_SECRET = process.env.JWT_SECRET || 'trolley-tracker-jwt-secret-key-2026';
+
 router.post('/login', (req, res) => {
   try {
     const { email, password } = req.body;
@@ -23,7 +25,7 @@ router.post('/login', (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '24h' });
 
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {

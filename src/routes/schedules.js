@@ -75,7 +75,8 @@ router.post('/', (req, res) => {
 
     res.status(201).json({ id, message: 'Schedule created successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error creating schedule:', err);
+    res.status(500).json({ error: err ? (err.message || String(err)) : 'Failed to create schedule' });
   }
 });
 

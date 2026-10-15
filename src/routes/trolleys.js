@@ -72,7 +72,7 @@ router.get('/code/:code', (req, res) => {
   }
 });
 
-router.post('/', requireRole('ADMIN'), (req, res) => {
+router.post('/', requireRole('ADMIN', 'TECHNICIAN'), (req, res) => {
   try {
     const { trolley_code, location, status, condition, photo_url, manufactured_date, notes } = req.body;
     if (!trolley_code) return res.status(400).json({ error: 'Trolley code is required' });
@@ -87,10 +87,10 @@ router.post('/', requireRole('ADMIN'), (req, res) => {
 
     res.status(201).json({ id, message: 'Trolley created successfully' });
   } catch (err) {
-    if (err.message.includes('UNIQUE constraint failed')) {
+    if (err && err.message && err.message.includes('UNIQUE constraint failed')) {
       return res.status(400).json({ error: 'Trolley code already exists' });
     }
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err ? (err.message || String(err)) : 'Failed to create trolley' });
   }
 });
 

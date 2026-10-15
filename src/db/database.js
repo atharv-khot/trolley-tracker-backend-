@@ -141,10 +141,16 @@ const getDB = () => {
   return db;
 };
 
+const sanitizeParams = (params = []) => {
+  if (!Array.isArray(params)) return params;
+  return params.map(p => (p === undefined ? null : p));
+};
+
 // Helper: sql.js returns arrays of arrays. This converts to objects.
 const queryAll = (sql, params = []) => {
+  const sanitized = sanitizeParams(params);
   const stmt = db.prepare(sql);
-  if (params.length > 0) stmt.bind(params);
+  if (sanitized.length > 0) stmt.bind(sanitized);
   const results = [];
   while (stmt.step()) {
     results.push(stmt.getAsObject());
@@ -159,7 +165,8 @@ const queryOne = (sql, params = []) => {
 };
 
 const runQuery = (sql, params = []) => {
-  db.run(sql, params);
+  const sanitized = sanitizeParams(params);
+  db.run(sql, sanitized);
   saveDB();
   return { changes: db.getRowsModified() };
 };

@@ -59,7 +59,8 @@ router.post('/', (req, res) => {
 
     res.status(201).json({ id, message: 'Issue reported successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error reporting issue:', err);
+    res.status(500).json({ error: err ? (err.message || String(err)) : 'Failed to report issue' });
   }
 });
 
