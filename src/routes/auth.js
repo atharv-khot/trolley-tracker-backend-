@@ -9,12 +9,12 @@ require('dotenv').config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'trolley-tracker-jwt-secret-key-2026';
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    const user = queryOne('SELECT * FROM users WHERE email = ?', [email]);
+    const user = await queryOne('SELECT * FROM users WHERE email = ?', [email]);
 
     if (!user || !user.is_active) {
       return res.status(401).json({ error: 'Invalid credentials or inactive user' });
@@ -33,14 +33,14 @@ router.post('/login', (req, res) => {
   }
 });
 
-router.post('/register', verifyToken, requireRole('ADMIN'), (req, res) => {
+router.post('/register', verifyToken, requireRole('ADMIN'), async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
     if (!name || !email || !password || !role) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    const existing = queryOne('SELECT id FROM users WHERE email = ?', [email]);
+    const existing = await queryOne('SELECT id FROM users WHERE email = ?', [email]);
     if (existing) {
       return res.status(400).json({ error: 'Email already exists' });
     }
@@ -50,7 +50,7 @@ router.post('/register', verifyToken, requireRole('ADMIN'), (req, res) => {
     const id = generateId();
     const created_at = new Date().toISOString();
 
-    runQuery('INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)', [id, name, email, password_hash, role, created_at]);
+    await runQuery('INSERT INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)', [id, name, email, password_hash, role, created_at]);
 
     res.status(201).json({ message: 'User created successfully', userId: id });
   } catch (err) {

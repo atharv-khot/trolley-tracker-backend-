@@ -7,7 +7,7 @@ const { sendMaintenanceAlertEmail } = require('../services/emailService');
 
 router.use(verifyToken);
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { trolley_id, type, status, start_date, end_date } = req.query;
     let query = `
@@ -38,16 +38,16 @@ router.get('/', (req, res) => {
 
     query += ' ORDER BY ml.created_at DESC';
 
-    const logs = queryAll(query, params);
+    const logs = await queryAll(query, params);
     res.json({ count: logs.length, logs });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const log = queryOne(`
+    const log = await queryOne(`
       SELECT ml.*, t.trolley_code, u.name as performer_name
       FROM maintenance_logs ml
       JOIN trolleys t ON ml.trolley_id = t.id
@@ -82,24 +82,24 @@ router.post('/', async (req, res) => {
 
     const checklistStr = typeof checklist_json === 'object' ? JSON.stringify(checklist_json) : (checklist_json || null);
 
-    runQuery(`
+    await runQuery(`
       INSERT INTO maintenance_logs (id, trolley_id, performed_by, type, description, parts_replaced, before_photo_url, after_photo_url, checklist_json, status, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [id, trolley_id, req.user.id, type, description, parts_replaced, before_photo_url, after_photo_url, checklistStr, status || 'COMPLETED', now]);
 
     // Auto-update trolley based on type
     if (type === 'REPAIR' || type === 'REPLACEMENT') {
-        runQuery("UPDATE trolleys SET condition = 'GOOD', status = 'ACTIVE', updated_at = ? WHERE id = ?", [now, trolley_id]);
+      await runQuery("UPDATE trolleys SET condition = 'GOOD', status = 'ACTIVE', updated_at = ? WHERE id = ?", [now, trolley_id]);
     } else if (type === 'CLEANING') {
-        runQuery("UPDATE trolleys SET status = 'ACTIVE', updated_at = ? WHERE id = ?", [now, trolley_id]);
+      await runQuery("UPDATE trolleys SET status = 'ACTIVE', updated_at = ? WHERE id = ?", [now, trolley_id]);
     }
 
     // Trigger email notification if requested
     let emailResult = null;
     if (trigger_email) {
       try {
-        const trolley = queryOne('SELECT trolley_code FROM trolleys WHERE id = ?', [trolley_id]);
-        const performer = queryOne('SELECT name, email FROM users WHERE id = ?', [req.user.id]);
+        const trolley = await queryOne('SELECT trolley_code FROM trolleys WHERE id = ?', [trolley_id]);
+        const performer = await queryOne('SELECT name, email FROM users WHERE id = ?', [req.user.id]);
         
         emailResult = await sendMaintenanceAlertEmail({
           to: notify_email || performer?.email,
@@ -134,7 +134,7 @@ router.post('/', async (req, res) => {
 router.post('/:id/trigger-email', async (req, res) => {
   try {
     const { recipient_email } = req.body;
-    const log = queryOne(`
+    const log = await queryOne(`
       SELECT ml.*, t.trolley_code, u.name as performer_name, u.email as performer_email
       FROM maintenance_logs ml
       JOIN trolleys t ON ml.trolley_id = t.id
@@ -173,10 +173,10 @@ router.post('/:id/trigger-email', async (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const { status } = req.body;
-    runQuery("UPDATE maintenance_logs SET status = ? WHERE id = ?", [status, req.params.id]);
+    await runQuery("UPDATE maintenance_logs SET status = ? WHERE id = ?", [status, req.params.id]);
     res.json({ message: 'Log updated successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -66,18 +66,19 @@ const PORT = process.env.PORT || 3000;
 async function startServer() {
   await initDB();
   
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Server running on port ${PORT}`);
     
     try {
       const now = new Date().toISOString();
-      const overdue = queryOne(`
+      const overdue = await queryOne(`
         SELECT COUNT(*) as count FROM maintenance_schedules
         WHERE is_active = 1 AND next_due_date < ?
       `, [now]);
       
-      if (overdue && overdue.count > 0) {
-        console.log(`[REMINDER] You have ${overdue.count} overdue maintenance schedule(s)!`);
+      const count = Number(overdue?.count || 0);
+      if (count > 0) {
+        console.log(`[REMINDER] You have ${count} overdue maintenance schedule(s)!`);
       } else {
         console.log(`[REMINDER] No overdue maintenance schedules.`);
       }

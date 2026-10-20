@@ -4,10 +4,10 @@ const { queryAll, runQuery } = require('../db/database');
 const { verifyToken } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 
-router.get('/check', verifyToken, (req, res) => {
+router.get('/check', verifyToken, async (req, res) => {
   try {
     // Check trolleys that don't have an active schedule
-    const trolleysWithoutSchedule = queryAll(`
+    const trolleysWithoutSchedule = await queryAll(`
       SELECT t.* FROM trolleys t
       LEFT JOIN maintenance_schedules s ON t.id = s.trolley_id AND s.is_active = 1
       WHERE s.id IS NULL
@@ -20,10 +20,10 @@ router.get('/check', verifyToken, (req, res) => {
   }
 });
 
-router.post('/setup-all', verifyToken, (req, res) => {
+router.post('/setup-all', verifyToken, async (req, res) => {
   try {
     // Check trolleys that don't have an active schedule
-    const trolleysWithoutSchedule = queryAll(`
+    const trolleysWithoutSchedule = await queryAll(`
       SELECT t.id FROM trolleys t
       LEFT JOIN maintenance_schedules s ON t.id = s.trolley_id AND s.is_active = 1
       WHERE s.id IS NULL
@@ -39,9 +39,8 @@ router.post('/setup-all', verifyToken, (req, res) => {
     const nextDueDateStr = nextDueDate.toISOString();
     const nowStr = now.toISOString();
     
-    // There is no db.transaction exported, so we just run in loop
     for (const trolley of trolleysWithoutSchedule) {
-      runQuery(insertScheduleSql, [uuidv4(), trolley.id, 'ROUTINE_INSPECTION', 90, nextDueDateStr, nowStr]);
+      await runQuery(insertScheduleSql, [uuidv4(), trolley.id, 'ROUTINE_INSPECTION', 90, nextDueDateStr, nowStr]);
     }
     
     res.json({ message: 'Set up 3-month recurring maintenance reminders for all trolleys', count: trolleysWithoutSchedule.length });
@@ -51,12 +50,12 @@ router.post('/setup-all', verifyToken, (req, res) => {
   }
 });
 
-router.get('/due', verifyToken, (req, res) => {
+router.get('/due', verifyToken, async (req, res) => {
   try {
     const now = new Date();
     const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     
-    const dueSchedules = queryAll(`
+    const dueSchedules = await queryAll(`
       SELECT s.*, t.trolley_code 
       FROM maintenance_schedules s
       JOIN trolleys t ON s.trolley_id = t.id
@@ -70,11 +69,11 @@ router.get('/due', verifyToken, (req, res) => {
   }
 });
 
-router.get('/overdue', verifyToken, (req, res) => {
+router.get('/overdue', verifyToken, async (req, res) => {
   try {
     const now = new Date().toISOString();
     
-    const overdueSchedules = queryAll(`
+    const overdueSchedules = await queryAll(`
       SELECT s.*, t.trolley_code 
       FROM maintenance_schedules s
       JOIN trolleys t ON s.trolley_id = t.id
