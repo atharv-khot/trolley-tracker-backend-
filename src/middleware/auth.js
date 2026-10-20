@@ -4,7 +4,8 @@ require('dotenv').config();
 const JWT_SECRET = process.env.JWT_SECRET || 'trolley-tracker-jwt-secret-key-2026';
 
 const verifyToken = (req, res, next) => {
-  const token = req.headers['authorization']?.split(' ')[1];
+  const authHeader = req.headers['authorization'];
+  const token = (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader) || req.query.token;
 
   if (!token) {
     return res.status(403).json({ error: 'A token is required for authentication' });
