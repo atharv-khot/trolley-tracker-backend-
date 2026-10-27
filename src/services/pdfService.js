@@ -78,11 +78,12 @@ function generateTrolleysPDF(trolleys, stream, user) {
   y = 160;
   // Table Columns
   const cols = [
-    { name: 'Trolley Code', width: 85, align: 'left' },
-    { name: 'Plant Location / Zone', width: 140, align: 'left' },
-    { name: 'Status', width: 95, align: 'center' },
-    { name: 'Condition', width: 80, align: 'center' },
-    { name: 'Notes / Specs', width: 125, align: 'left' }
+    { name: 'Trolley Code', width: 75, align: 'left' },
+    { name: 'Plant Location / Zone', width: 130, align: 'left' },
+    { name: 'Status', width: 85, align: 'center' },
+    { name: 'Condition', width: 70, align: 'center' },
+    { name: 'Last Service', width: 75, align: 'center' },
+    { name: 'Notes / Specs', width: 90, align: 'left' }
   ];
 
   // Table Header
@@ -133,8 +134,13 @@ function generateTrolleysPDF(trolleys, stream, user) {
     doc.fillColor(COLORS.textDark).fontSize(8).font('Helvetica').text(t.condition || 'GOOD', curX, y + 5, { width: cols[3].width - 10, align: cols[3].align });
     curX += cols[3].width;
 
+    // Last Service Date
+    const sDate = t.last_service_date ? new Date(t.last_service_date).toLocaleDateString('en-GB') : '-';
+    doc.fillColor(COLORS.textDark).fontSize(7.5).font('Helvetica-Bold').text(sDate, curX, y + 5, { width: cols[4].width - 10, align: cols[4].align });
+    curX += cols[4].width;
+
     // Notes
-    doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica').text((t.notes || '-').slice(0, 35), curX, y + 5, { width: cols[4].width - 10, align: cols[4].align });
+    doc.fillColor(COLORS.textMuted).fontSize(7.5).font('Helvetica').text((t.notes || '-').slice(0, 25), curX, y + 5, { width: cols[5].width - 10, align: cols[5].align });
 
     y += 20;
   });
@@ -342,11 +348,12 @@ function generateAllDataPDF({ trolleys, logs, issues }, stream, user) {
 
   let y = 125;
   const tCols = [
-    { name: 'Trolley Code', width: 90, align: 'left' },
-    { name: 'Location / Zone', width: 140, align: 'left' },
-    { name: 'Status', width: 100, align: 'center' },
-    { name: 'Condition', width: 90, align: 'center' },
-    { name: 'Specs', width: 105, align: 'left' }
+    { name: 'Trolley Code', width: 80, align: 'left' },
+    { name: 'Location / Zone', width: 130, align: 'left' },
+    { name: 'Status', width: 85, align: 'center' },
+    { name: 'Condition', width: 75, align: 'center' },
+    { name: 'Last Service', width: 75, align: 'center' },
+    { name: 'Specs', width: 80, align: 'left' }
   ];
 
   doc.rect(35, y, doc.page.width - 70, 20).fill(COLORS.tableHeaderBg);
@@ -369,7 +376,10 @@ function generateAllDataPDF({ trolleys, logs, issues }, stream, user) {
     curX += tCols[2].width;
     doc.fillColor(COLORS.textDark).fontSize(7.5).font('Helvetica').text(t.condition || 'GOOD', curX, y + 4, { width: tCols[3].width - 10, align: 'center' });
     curX += tCols[3].width;
-    doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica').text((t.notes || '-').slice(0, 25), curX, y + 4, { width: tCols[4].width - 10 });
+    const sDate = t.last_service_date ? new Date(t.last_service_date).toLocaleDateString('en-GB') : '-';
+    doc.fillColor(COLORS.textDark).fontSize(7.5).font('Helvetica-Bold').text(sDate, curX, y + 4, { width: tCols[4].width - 10, align: 'center' });
+    curX += tCols[4].width;
+    doc.fillColor(COLORS.textMuted).fontSize(7).font('Helvetica').text((t.notes || '-').slice(0, 20), curX, y + 4, { width: tCols[5].width - 10 });
     y += 18;
   });
 

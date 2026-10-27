@@ -87,11 +87,13 @@ router.post('/', async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [id, trolley_id, req.user.id, type, description, parts_replaced, before_photo_url, after_photo_url, checklistStr, status || 'COMPLETED', now]);
 
-    // Auto-update trolley based on type
+    // Auto-update trolley based on type and record last service date
     if (type === 'REPAIR' || type === 'REPLACEMENT') {
-      await runQuery("UPDATE trolleys SET condition = 'GOOD', status = 'ACTIVE', updated_at = ? WHERE id = ?", [now, trolley_id]);
+      await runQuery("UPDATE trolleys SET condition = 'GOOD', status = 'ACTIVE', last_service_date = ?, updated_at = ? WHERE id = ?", [now, now, trolley_id]);
     } else if (type === 'CLEANING') {
-      await runQuery("UPDATE trolleys SET status = 'ACTIVE', updated_at = ? WHERE id = ?", [now, trolley_id]);
+      await runQuery("UPDATE trolleys SET status = 'ACTIVE', last_service_date = ?, updated_at = ? WHERE id = ?", [now, now, trolley_id]);
+    } else {
+      await runQuery("UPDATE trolleys SET last_service_date = ?, updated_at = ? WHERE id = ?", [now, now, trolley_id]);
     }
 
     // Trigger email notification if requested

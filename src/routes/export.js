@@ -47,6 +47,7 @@ const handleTrolleysExport = async (req, res) => {
         { header: 'Location', key: 'location' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },
+        { header: 'Last Service Date', key: 'last_service_date' },
         { header: 'Manufactured Date', key: 'manufactured_date' },
         { header: 'Notes', key: 'notes' },
         { header: 'Created At', key: 'created_at' }
@@ -208,6 +209,7 @@ const handleAllExport = async (req, res) => {
         { header: 'Location', key: 'location' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },
+        { header: 'Last Service Date', key: 'last_service_date' },
         { header: 'Manufactured Date', key: 'manufactured_date' },
         { header: 'Notes', key: 'notes' },
         { header: 'Created At', key: 'created_at' }

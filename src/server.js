@@ -208,6 +208,7 @@ app.get('/download/excel/:type', async (req, res) => {
         { header: 'Location', key: 'location' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },
+        { header: 'Last Service Date', key: 'last_service_date' },
         { header: 'Notes', key: 'notes' }
       ];
       trolleys.forEach(t => ws.addRow(t));

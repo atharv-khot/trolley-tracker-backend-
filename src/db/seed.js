@@ -8,15 +8,15 @@ const seed = async () => {
   await initDB();
   console.log('Seeding database...');
 
+  const now = new Date().toISOString();
+  const salt = bcrypt.genSaltSync(10);
+
   // Users
   const adminId = uuidv4();
   const techId = uuidv4();
   const inspectorId = uuidv4();
-  const now = new Date().toISOString();
-  
-  const salt = bcrypt.genSaltSync(10);
-  
   const atharvId = uuidv4();
+
   const users = [
     { id: adminId, name: 'Atharv Khot (Admin)', email: 'atharvkhot@trolley.com', password: bcrypt.hashSync('admin123', salt), role: 'ADMIN' },
     { id: techId, name: 'Tech User', email: 'tech@trolley.com', password: bcrypt.hashSync('tech123', salt), role: 'TECHNICIAN' },
@@ -25,73 +25,58 @@ const seed = async () => {
   ];
 
   const userSql = 'INSERT OR IGNORE INTO users (id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)';
-  users.forEach(u => runQuery(userSql, [u.id, u.name, u.email, u.password, u.role, now]));
+  for (const u of users) {
+    await runQuery(userSql, [u.id, u.name, u.email, u.password, u.role, now]);
+  }
 
-  // Trolleys
-  const trolleys = [];
-  const zones = ['Zone A Assembly', 'Zone B Paint', 'Zone C Storage', 'Zone D Shipping'];
-  const statuses = ['ACTIVE', 'UNDER_MAINTENANCE', 'RETIRED'];
-  const conditions = ['GOOD', 'FAIR', 'POOR', 'CRITICAL'];
+  // Trolleys: 102 total
+  const trolleyDefinitions = [
+    // F-1 to F-40
+    ...Array.from({ length: 40 }, (_, i) => ({
+      code: `F-${i + 1}`,
+      location: 'Zone A - Front Bumper',
+      status: 'ACTIVE',
+      condition: 'GOOD',
+      notes: `Front Bumper Carrier Trolley F-${i + 1}`
+    })),
+    // N-1 to N-30
+    ...Array.from({ length: 30 }, (_, i) => ({
+      code: `N-${i + 1}`,
+      location: 'Zone B - Main Line',
+      status: 'ACTIVE',
+      condition: 'GOOD',
+      notes: `Production Carrier Trolley N-${i + 1}`
+    })),
+    // R-1 to R-20
+    ...Array.from({ length: 20 }, (_, i) => ({
+      code: `R-${i + 1}`,
+      location: 'Zone C - Rear Bumper',
+      status: 'ACTIVE',
+      condition: 'GOOD',
+      notes: `Rear Bumper Carrier Trolley R-${i + 1}`
+    })),
+    // H-1 to H-12
+    ...Array.from({ length: 12 }, (_, i) => ({
+      code: `H-${i + 1}`,
+      location: 'Zone D - Heavy Duty',
+      status: 'ACTIVE',
+      condition: 'GOOD',
+      notes: `Heavy Duty Carrier Trolley H-${i + 1}`
+    }))
+  ];
 
   const trolleySql = `
-    INSERT OR IGNORE INTO trolleys (id, trolley_code, location, status, condition, manufactured_date, created_at, updated_at)
+    INSERT OR IGNORE INTO trolleys (id, trolley_code, location, status, condition, notes, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  for (let i = 1; i <= 10; i++) {
+  for (const t of trolleyDefinitions) {
     const trolleyId = uuidv4();
-    const code = `TRL-${String(i).padStart(3, '0')}`;
-    const location = zones[Math.floor(Math.random() * zones.length)];
-    const status = statuses[Math.floor(Math.random() * 3)];
-    const condition = conditions[Math.floor(Math.random() * 4)];
-    const mDate = new Date();
-    mDate.setFullYear(mDate.getFullYear() - Math.floor(Math.random() * 5));
-
-    trolleys.push(trolleyId);
-    runQuery(trolleySql, [trolleyId, code, location, status, condition, mDate.toISOString(), now, now]);
+    await runQuery(trolleySql, [trolleyId, t.code, t.location, t.status, t.condition, t.notes, now, now]);
   }
 
-  // Maintenance Logs
-  const logTypes = ['REPAIR', 'INSPECTION', 'CLEANING', 'REPLACEMENT'];
-  const logSql = `
-    INSERT INTO maintenance_logs (id, trolley_id, performed_by, type, description, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  for (let i = 0; i < 15; i++) {
-    const trolleyId = trolleys[Math.floor(Math.random() * trolleys.length)];
-    const type = logTypes[Math.floor(Math.random() * logTypes.length)];
-    runQuery(logSql, [uuidv4(), trolleyId, techId, type, `Routine ${type} performed`, 'COMPLETED', now]);
-  }
-
-  // Issues
-  const severities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-  const issueSql = `
-    INSERT INTO issues (id, trolley_id, reported_by, title, description, severity, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  for (let i = 0; i < 5; i++) {
-    const trolleyId = trolleys[Math.floor(Math.random() * trolleys.length)];
-    const severity = severities[Math.floor(Math.random() * severities.length)];
-    runQuery(issueSql, [uuidv4(), trolleyId, inspectorId, `Issue with wheel`, `Wheel is stuck on trolley`, severity, 'OPEN', now]);
-  }
-
-  // Schedules
-  const scheduleSql = `
-    INSERT INTO maintenance_schedules (id, trolley_id, maintenance_type, frequency_days, next_due_date, assigned_to, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `;
-
-  for (let i = 0; i < 5; i++) {
-    const trolleyId = trolleys[Math.floor(Math.random() * trolleys.length)];
-    const nextDate = new Date();
-    nextDate.setDate(nextDate.getDate() + Math.floor(Math.random() * 30));
-    runQuery(scheduleSql, [uuidv4(), trolleyId, 'INSPECTION', 30, nextDate.toISOString().split('T')[0], techId, now]);
-  }
-
-  await saveDB();
-  console.log('Seeding completed.');
+  saveDB();
+  console.log(`Database seeded successfully with users and ${trolleyDefinitions.length} plant trolleys.`);
 };
 
 seed();

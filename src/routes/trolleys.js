@@ -74,16 +74,17 @@ router.get('/code/:code', async (req, res) => {
 
 router.post('/', requireRole('ADMIN', 'TECHNICIAN'), async (req, res) => {
   try {
-    const { trolley_code, location, status, condition, photo_url, manufactured_date, notes } = req.body;
+    const { trolley_code, location, status, condition, photo_url, manufactured_date, last_service_date, notes } = req.body;
     if (!trolley_code) return res.status(400).json({ error: 'Trolley code is required' });
 
     const id = generateId();
     const now = new Date().toISOString();
+    const serviceDate = last_service_date || now;
 
     await runQuery(`
-      INSERT INTO trolleys (id, trolley_code, location, status, condition, photo_url, manufactured_date, notes, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [id, trolley_code, location, status || 'ACTIVE', condition || 'GOOD', photo_url, manufactured_date, notes, now, now]);
+      INSERT INTO trolleys (id, trolley_code, location, status, condition, photo_url, manufactured_date, last_service_date, notes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [id, trolley_code, location, status || 'ACTIVE', condition || 'GOOD', photo_url, manufactured_date, serviceDate, notes, now, now]);
 
     res.status(201).json({ id, message: 'Trolley created successfully' });
   } catch (err) {
@@ -96,7 +97,7 @@ router.post('/', requireRole('ADMIN', 'TECHNICIAN'), async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { location, status, condition, photo_url, notes } = req.body;
+    const { location, status, condition, photo_url, notes, last_service_date } = req.body;
     const now = new Date().toISOString();
 
     const trolley = await queryOne('SELECT id FROM trolleys WHERE id = ?', [req.params.id]);
@@ -105,8 +106,9 @@ router.put('/:id', async (req, res) => {
     await runQuery(`
       UPDATE trolleys SET location = COALESCE(?, location), status = COALESCE(?, status),
       condition = COALESCE(?, condition), photo_url = COALESCE(?, photo_url),
-      notes = COALESCE(?, notes), updated_at = ? WHERE id = ?
-    `, [location, status, condition, photo_url, notes, now, req.params.id]);
+      notes = COALESCE(?, notes), last_service_date = COALESCE(?, last_service_date),
+      updated_at = ? WHERE id = ?
+    `, [location, status, condition, photo_url, notes, last_service_date, now, req.params.id]);
 
     res.json({ message: 'Trolley updated successfully' });
   } catch (err) {

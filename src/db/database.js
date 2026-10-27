@@ -97,11 +97,20 @@ const initDB = async () => {
           photo_url TEXT,
           qr_code TEXT,
           manufactured_date VARCHAR(64),
+          last_service_date VARCHAR(64),
           notes TEXT,
           created_at VARCHAR(64) NOT NULL,
           updated_at VARCHAR(64) NOT NULL
         );
       `);
+
+      // Migration: Ensure last_service_date column exists and backfill
+      try {
+        await pgPool.query('ALTER TABLE trolleys ADD COLUMN IF NOT EXISTS last_service_date VARCHAR(64);');
+        await pgPool.query("UPDATE trolleys SET last_service_date = created_at WHERE last_service_date IS NULL OR last_service_date = '';");
+      } catch (colErr) {
+        console.log('[DB] Column last_service_date check:', colErr.message);
+      }
 
       await pgPool.query(`
         CREATE TABLE IF NOT EXISTS maintenance_logs (
@@ -230,11 +239,22 @@ const initDB = async () => {
       photo_url TEXT,
       qr_code TEXT,
       manufactured_date TEXT,
+      last_service_date TEXT,
       notes TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
+
+  // Migration for existing SQLite database
+  try {
+    db.run('ALTER TABLE trolleys ADD COLUMN last_service_date TEXT;');
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    db.run("UPDATE trolleys SET last_service_date = created_at WHERE last_service_date IS NULL OR last_service_date = '';");
+  } catch (e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS maintenance_logs (
