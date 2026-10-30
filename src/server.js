@@ -117,6 +117,14 @@ app.get('/reports', (req, res) => {
     </div>
   </div>
 
+  <div class="card" style="border: 2px solid #2563EB; background: #EFF6FF;">
+    <div class="card-title" style="color: #1E40AF;">📊 3-Page Workflow Presentation (.pptx)</div>
+    <div class="card-desc">Executive 3-slide guide with mobile screenshots showing Fleet Tracking, 8-Point QR Inspection, and Cloud Reports.</div>
+    <div class="btn-group">
+      <a href="/download/ppt" class="btn" style="background: #2563EB; color: white;">📥 Download PowerPoint (.pptx)</a>
+    </div>
+  </div>
+
   <div class="card master-card">
     <div class="card-title" style="color: #4338CA;">🛡️ Master Plant Audit Report (All Data)</div>
     <div class="card-desc">Complete multi-section executive audit report covering Fleet Inventory, Maintenance Check Sheets, and Breakdown Logs.</div>
@@ -132,6 +140,24 @@ app.get('/reports', (req, res) => {
 </body>
 </html>
   `);
+});
+
+app.get('/download/ppt', (req, res) => {
+  const fs = require('fs');
+  const fileCandidates = [
+    path.join(__dirname, '../uploads/Trolley_App_Workflow_Guide.pptx'),
+    path.join(__dirname, '../Trolley_App_Workflow_Guide.pptx'),
+    path.join(__dirname, '../../Trolley_App_Workflow_Guide.pptx'),
+    'C:/Users/athar/Desktop/Trolley_App_Workflow_Guide.pptx'
+  ];
+  for (const f of fileCandidates) {
+    if (fs.existsSync(f)) {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+      res.setHeader('Content-Disposition', 'attachment; filename="Trolley_App_Workflow_Guide.pptx"');
+      return res.sendFile(path.resolve(f));
+    }
+  }
+  res.status(404).send('Presentation file not found');
 });
 
 app.get('/download/pdf/:type', async (req, res) => {

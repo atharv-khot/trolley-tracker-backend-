@@ -96,6 +96,24 @@ router.post('/', async (req, res) => {
       await runQuery("UPDATE trolleys SET last_service_date = ?, updated_at = ? WHERE id = ?", [now, now, trolley_id]);
     }
 
+    // Auto-update or create upcoming maintenance schedule for this trolley (+90 days)
+    try {
+      const existingSchedule = await queryOne('SELECT * FROM maintenance_schedules WHERE trolley_id = ? AND is_active = 1', [trolley_id]);
+      const freqDays = existingSchedule?.frequency_days ? Number(existingSchedule.frequency_days) : 90;
+      const nextDue = new Date(Date.now() + freqDays * 24 * 60 * 60 * 1000).toISOString();
+      if (existingSchedule) {
+        await runQuery('UPDATE maintenance_schedules SET next_due_date = ? WHERE id = ?', [nextDue, existingSchedule.id]);
+      } else {
+        const schedId = generateId();
+        await runQuery(`
+          INSERT INTO maintenance_schedules (id, trolley_id, maintenance_type, frequency_days, next_due_date, is_active, created_at)
+          VALUES (?, ?, 'ROUTINE_INSPECTION', ?, ?, 1, ?)
+        `, [schedId, trolley_id, freqDays, nextDue, now]);
+      }
+    } catch (schedErr) {
+      console.warn('[Maintenance] Auto-update schedule warning:', schedErr.message);
+    }
+
     // Trigger email notification if requested
     let emailResult = null;
     if (trigger_email) {
