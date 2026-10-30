@@ -32,6 +32,34 @@ const styleHeader = (worksheet) => {
   });
 };
 
+const formatDate = (val) => {
+  if (!val) return 'N/A';
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return String(val);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    return String(val);
+  }
+};
+
+const formatNextDue = (baseVal, days = 90) => {
+  try {
+    const base = baseVal ? new Date(baseVal) : new Date();
+    if (isNaN(base.getTime())) return 'N/A';
+    const next = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+    const day = String(next.getDate()).padStart(2, '0');
+    const month = String(next.getMonth() + 1).padStart(2, '0');
+    const year = next.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    return 'N/A';
+  }
+};
+
 // --- 1. TROLLEYS EXPORT (PDF by default, or ?format=excel) ---
 const handleTrolleysExport = async (req, res) => {
   try {
@@ -43,17 +71,26 @@ const handleTrolleysExport = async (req, res) => {
       const worksheet = workbook.addWorksheet('Trolleys');
       
       worksheet.columns = [
-        { header: 'Code', key: 'trolley_code' },
+        { header: 'Trolley Code', key: 'trolley_code' },
         { header: 'Location', key: 'location' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },
-        { header: 'Last Service Date', key: 'last_service_date' },
-        { header: 'Manufactured Date', key: 'manufactured_date' },
-        { header: 'Notes', key: 'notes' },
-        { header: 'Created At', key: 'created_at' }
+        { header: 'Last Service Date', key: 'formatted_last_service' },
+        { header: 'Upcoming Maintenance Date', key: 'formatted_next_due' },
+        { header: 'Registration Date', key: 'formatted_created' },
+        { header: 'Manufactured Date', key: 'formatted_manufactured' },
+        { header: 'Notes', key: 'notes' }
       ];
       
-      trolleys.forEach(t => worksheet.addRow(t));
+      trolleys.forEach(t => {
+        worksheet.addRow({
+          ...t,
+          formatted_last_service: formatDate(t.last_service_date || t.updated_at || t.created_at),
+          formatted_next_due: formatNextDue(t.last_service_date || t.updated_at || t.created_at, 90),
+          formatted_created: formatDate(t.created_at),
+          formatted_manufactured: formatDate(t.manufactured_date)
+        });
+      });
       styleHeader(worksheet);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -95,15 +132,20 @@ const handleMaintenanceExport = async (req, res) => {
       
       worksheet.columns = [
         { header: 'Trolley Code', key: 'trolley_code' },
-        { header: 'Type', key: 'type' },
-        { header: 'Description', key: 'description' },
+        { header: 'Maintenance Date', key: 'formatted_date' },
+        { header: 'Service Type', key: 'type' },
+        { header: 'Technician', key: 'performed_by_name' },
         { header: 'Parts Replaced', key: 'parts_replaced' },
         { header: 'Status', key: 'status' },
-        { header: 'Performed By', key: 'performed_by_name' },
-        { header: 'Date', key: 'created_at' }
+        { header: 'Description / Remarks', key: 'description' }
       ];
       
-      logs.forEach(l => worksheet.addRow(l));
+      logs.forEach(l => {
+        worksheet.addRow({
+          ...l,
+          formatted_date: formatDate(l.created_at)
+        });
+      });
       styleHeader(worksheet);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -145,16 +187,23 @@ const handleIssuesExport = async (req, res) => {
       
       worksheet.columns = [
         { header: 'Trolley Code', key: 'trolley_code' },
+        { header: 'Reported Date', key: 'formatted_date' },
         { header: 'Title', key: 'title' },
-        { header: 'Description', key: 'description' },
         { header: 'Severity', key: 'severity' },
         { header: 'Status', key: 'status' },
         { header: 'Reported By', key: 'reported_by_name' },
         { header: 'Resolved By', key: 'resolved_by_name' },
-        { header: 'Date', key: 'created_at' }
+        { header: 'Resolved Date', key: 'formatted_resolved_date' },
+        { header: 'Description', key: 'description' }
       ];
       
-      issues.forEach(i => worksheet.addRow(i));
+      issues.forEach(i => {
+        worksheet.addRow({
+          ...i,
+          formatted_date: formatDate(i.created_at),
+          formatted_resolved_date: formatDate(i.resolved_at)
+        });
+      });
       styleHeader(worksheet);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -205,45 +254,64 @@ const handleAllExport = async (req, res) => {
       // Trolleys Sheet
       const sheetTrolleys = workbook.addWorksheet('Trolleys');
       sheetTrolleys.columns = [
-        { header: 'Code', key: 'trolley_code' },
+        { header: 'Trolley Code', key: 'trolley_code' },
         { header: 'Location', key: 'location' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },
-        { header: 'Last Service Date', key: 'last_service_date' },
-        { header: 'Manufactured Date', key: 'manufactured_date' },
-        { header: 'Notes', key: 'notes' },
-        { header: 'Created At', key: 'created_at' }
+        { header: 'Last Service Date', key: 'formatted_last_service' },
+        { header: 'Upcoming Maintenance Date', key: 'formatted_next_due' },
+        { header: 'Registration Date', key: 'formatted_created' },
+        { header: 'Notes', key: 'notes' }
       ];
-      trolleys.forEach(t => sheetTrolleys.addRow(t));
+      trolleys.forEach(t => {
+        sheetTrolleys.addRow({
+          ...t,
+          formatted_last_service: formatDate(t.last_service_date || t.updated_at || t.created_at),
+          formatted_next_due: formatNextDue(t.last_service_date || t.updated_at || t.created_at, 90),
+          formatted_created: formatDate(t.created_at)
+        });
+      });
       styleHeader(sheetTrolleys);
       
       // Maintenance Sheet
       const sheetMaintenance = workbook.addWorksheet('Maintenance');
       sheetMaintenance.columns = [
         { header: 'Trolley Code', key: 'trolley_code' },
-        { header: 'Type', key: 'type' },
-        { header: 'Description', key: 'description' },
+        { header: 'Maintenance Date', key: 'formatted_date' },
+        { header: 'Service Type', key: 'type' },
+        { header: 'Technician', key: 'performed_by_name' },
         { header: 'Parts Replaced', key: 'parts_replaced' },
         { header: 'Status', key: 'status' },
-        { header: 'Performed By', key: 'performed_by_name' },
-        { header: 'Date', key: 'created_at' }
+        { header: 'Description / Remarks', key: 'description' }
       ];
-      logs.forEach(l => sheetMaintenance.addRow(l));
+      logs.forEach(l => {
+        sheetMaintenance.addRow({
+          ...l,
+          formatted_date: formatDate(l.created_at)
+        });
+      });
       styleHeader(sheetMaintenance);
       
       // Issues Sheet
       const sheetIssues = workbook.addWorksheet('Issues');
       sheetIssues.columns = [
         { header: 'Trolley Code', key: 'trolley_code' },
+        { header: 'Reported Date', key: 'formatted_date' },
         { header: 'Title', key: 'title' },
-        { header: 'Description', key: 'description' },
         { header: 'Severity', key: 'severity' },
         { header: 'Status', key: 'status' },
         { header: 'Reported By', key: 'reported_by_name' },
         { header: 'Resolved By', key: 'resolved_by_name' },
-        { header: 'Date', key: 'created_at' }
+        { header: 'Resolved Date', key: 'formatted_resolved_date' },
+        { header: 'Description', key: 'description' }
       ];
-      issues.forEach(i => sheetIssues.addRow(i));
+      issues.forEach(i => {
+        sheetIssues.addRow({
+          ...i,
+          formatted_date: formatDate(i.created_at),
+          formatted_resolved_date: formatDate(i.resolved_at)
+        });
+      });
       styleHeader(sheetIssues);
       
       // Schedules Sheet
@@ -252,17 +320,27 @@ const handleAllExport = async (req, res) => {
         FROM maintenance_schedules s
         LEFT JOIN trolleys t ON s.trolley_id = t.id
         LEFT JOIN users u ON s.assigned_to = u.id
+        WHERE s.is_active = 1
+        ORDER BY s.next_due_date ASC
       `, []);
       const sheetSchedules = workbook.addWorksheet('Schedules');
       sheetSchedules.columns = [
         { header: 'Trolley Code', key: 'trolley_code' },
+        { header: 'Upcoming Maintenance Date', key: 'formatted_next_due' },
         { header: 'Maintenance Type', key: 'maintenance_type' },
         { header: 'Frequency (Days)', key: 'frequency_days' },
-        { header: 'Next Due Date', key: 'next_due_date' },
+        { header: 'Scheduled Date', key: 'formatted_created' },
         { header: 'Assigned To', key: 'assigned_to_name' },
-        { header: 'Active', key: 'is_active' }
+        { header: 'Active Status', key: 'status_label' }
       ];
-      schedules.forEach(s => sheetSchedules.addRow(s));
+      schedules.forEach(s => {
+        sheetSchedules.addRow({
+          ...s,
+          formatted_next_due: formatDate(s.next_due_date),
+          formatted_created: formatDate(s.created_at),
+          status_label: s.is_active ? 'ACTIVE' : 'INACTIVE'
+        });
+      });
       styleHeader(sheetSchedules);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

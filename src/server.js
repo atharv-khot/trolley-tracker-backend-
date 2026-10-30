@@ -222,6 +222,55 @@ app.get('/download/pdf/:type', async (req, res) => {
 });
 
 const ExcelJS = require('exceljs');
+
+const formatExcelDate = (val) => {
+  if (!val) return 'N/A';
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return String(val);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    return String(val);
+  }
+};
+
+const formatExcelNextDue = (baseVal, days = 90) => {
+  try {
+    const base = baseVal ? new Date(baseVal) : new Date();
+    if (isNaN(base.getTime())) return 'N/A';
+    const next = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+    const day = String(next.getDate()).padStart(2, '0');
+    const month = String(next.getMonth() + 1).padStart(2, '0');
+    const year = next.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch (e) {
+    return 'N/A';
+  }
+};
+
+const styleExcelHeader = (ws) => {
+  const row = ws.getRow(1);
+  row.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E3A8A' } // Deep Royal Blue
+    };
+  });
+  ws.columns.forEach(column => {
+    let max = 0;
+    column.eachCell({ includeEmpty: true }, cell => {
+      const len = cell.value ? cell.value.toString().length : 10;
+      if (len > max) max = len;
+    });
+    column.width = Math.max(12, max + 3);
+  });
+};
+
 app.get('/download/excel/:type', async (req, res) => {
   const { type } = req.params;
   try {
@@ -230,14 +279,24 @@ app.get('/download/excel/:type', async (req, res) => {
       const trolleys = await queryAll('SELECT * FROM trolleys ORDER BY trolley_code ASC', []);
       const ws = workbook.addWorksheet('Trolleys');
       ws.columns = [
-        { header: 'Code', key: 'trolley_code' },
+        { header: 'Trolley Code', key: 'trolley_code' },
         { header: 'Location', key: 'location' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },
-        { header: 'Last Service Date', key: 'last_service_date' },
+        { header: 'Last Service Date', key: 'formatted_last_service' },
+        { header: 'Upcoming Maintenance Date', key: 'formatted_next_due' },
+        { header: 'Registration Date', key: 'formatted_created' },
         { header: 'Notes', key: 'notes' }
       ];
-      trolleys.forEach(t => ws.addRow(t));
+      trolleys.forEach(t => {
+        ws.addRow({
+          ...t,
+          formatted_last_service: formatExcelDate(t.last_service_date || t.updated_at || t.created_at),
+          formatted_next_due: formatExcelNextDue(t.last_service_date || t.updated_at || t.created_at, 90),
+          formatted_created: formatExcelDate(t.created_at)
+        });
+      });
+      styleExcelHeader(ws);
     }
     if (type === 'maintenance' || type === 'all') {
       const logs = await queryAll(`
@@ -249,31 +308,79 @@ app.get('/download/excel/:type', async (req, res) => {
       `, []);
       const ws = workbook.addWorksheet('Maintenance');
       ws.columns = [
-        { header: 'Trolley', key: 'trolley_code' },
-        { header: 'Type', key: 'type' },
+        { header: 'Trolley Code', key: 'trolley_code' },
+        { header: 'Maintenance Date', key: 'formatted_date' },
+        { header: 'Service Type', key: 'type' },
         { header: 'Technician', key: 'performed_by_name' },
         { header: 'Parts Replaced', key: 'parts_replaced' },
-        { header: 'Status', key: 'status' }
+        { header: 'Status', key: 'status' },
+        { header: 'Description / Remarks', key: 'description' }
       ];
-      logs.forEach(l => ws.addRow(l));
+      logs.forEach(l => {
+        ws.addRow({
+          ...l,
+          formatted_date: formatExcelDate(l.created_at)
+        });
+      });
+      styleExcelHeader(ws);
     }
     if (type === 'issues' || type === 'all') {
       const issues = await queryAll(`
-        SELECT i.*, t.trolley_code, u.name as reported_by_name
+        SELECT i.*, t.trolley_code, u.name as reported_by_name, u2.name as resolved_by_name
         FROM issues i
         LEFT JOIN trolleys t ON i.trolley_id = t.id
         LEFT JOIN users u ON i.reported_by = u.id
+        LEFT JOIN users u2 ON i.resolved_by = u2.id
         ORDER BY i.created_at DESC
       `, []);
       const ws = workbook.addWorksheet('Issues');
       ws.columns = [
-        { header: 'Trolley', key: 'trolley_code' },
-        { header: 'Title', key: 'title' },
+        { header: 'Trolley Code', key: 'trolley_code' },
+        { header: 'Reported Date', key: 'formatted_date' },
+        { header: 'Issue Title', key: 'title' },
         { header: 'Severity', key: 'severity' },
         { header: 'Status', key: 'status' },
-        { header: 'Reported By', key: 'reported_by_name' }
+        { header: 'Reported By', key: 'reported_by_name' },
+        { header: 'Resolved Date', key: 'formatted_resolved_date' },
+        { header: 'Description', key: 'description' }
       ];
-      issues.forEach(i => ws.addRow(i));
+      issues.forEach(i => {
+        ws.addRow({
+          ...i,
+          formatted_date: formatExcelDate(i.created_at),
+          formatted_resolved_date: formatExcelDate(i.resolved_at)
+        });
+      });
+      styleExcelHeader(ws);
+    }
+    if (type === 'schedules' || type === 'all') {
+      const schedules = await queryAll(`
+        SELECT s.*, t.trolley_code, u.name as assigned_to_name
+        FROM maintenance_schedules s
+        LEFT JOIN trolleys t ON s.trolley_id = t.id
+        LEFT JOIN users u ON s.assigned_to = u.id
+        WHERE s.is_active = 1
+        ORDER BY s.next_due_date ASC
+      `, []);
+      const ws = workbook.addWorksheet('Schedules');
+      ws.columns = [
+        { header: 'Trolley Code', key: 'trolley_code' },
+        { header: 'Upcoming Maintenance Date', key: 'formatted_next_due' },
+        { header: 'Maintenance Type', key: 'maintenance_type' },
+        { header: 'Frequency (Days)', key: 'frequency_days' },
+        { header: 'Scheduled Date', key: 'formatted_created' },
+        { header: 'Assigned To', key: 'assigned_to_name' },
+        { header: 'Status', key: 'status_label' }
+      ];
+      schedules.forEach(s => {
+        ws.addRow({
+          ...s,
+          formatted_next_due: formatExcelDate(s.next_due_date),
+          formatted_created: formatExcelDate(s.created_at),
+          status_label: s.is_active ? 'ACTIVE' : 'INACTIVE'
+        });
+      });
+      styleExcelHeader(ws);
     }
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=${type}_export_${Date.now()}.xlsx`);
