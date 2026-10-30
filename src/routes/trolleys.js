@@ -45,17 +45,66 @@ router.get('/', async (req, res) => {
   }
 });
 
+const enrichTrolleyWithMaintenanceDetails = async (trolley) => {
+  if (!trolley || trolley.status !== 'UNDER_MAINTENANCE') return trolley;
+  
+  const openIssue = await queryOne(`
+    SELECT i.*, u.name as reporter_name
+    FROM issues i
+    LEFT JOIN users u ON i.reported_by = u.id
+    WHERE i.trolley_id = ? AND i.status = 'OPEN'
+    ORDER BY i.created_at DESC LIMIT 1
+  `, [trolley.id]);
+
+  let title = openIssue ? openIssue.title : '';
+  let desc = openIssue ? openIssue.description : '';
+  let reporter = openIssue ? openIssue.reporter_name : '';
+  let date = openIssue && openIssue.created_at ? new Date(openIssue.created_at).toLocaleString('en-GB') : '';
+
+  if (!title && trolley.maintenance_reason) {
+    if (trolley.maintenance_reason.includes(':')) {
+      const parts = trolley.maintenance_reason.split(':');
+      title = parts[0].trim();
+      desc = parts.slice(1).join(':').trim();
+    } else {
+      title = trolley.maintenance_reason;
+    }
+  }
+
+  if (title || desc) {
+    const header = '⚠️ WHY THIS TROLLEY CAME FOR MAINTENANCE:';
+    const titleLine = title ? `• Title: ${title.trim()}` : '';
+    const descLine = desc && desc !== title ? `• Description: ${desc.trim()}` : '';
+    const metaLine = [reporter ? `Reported by: ${reporter}` : '', date].filter(Boolean).join(' | ');
+
+    const block = [header, titleLine, descLine, metaLine].filter(Boolean).join('\n');
+    const existingNotes = trolley.notes || '';
+    
+    if (!existingNotes.includes('WHY THIS TROLLEY CAME FOR MAINTENANCE')) {
+      return {
+        ...trolley,
+        notes: existingNotes ? `${block}\n\n${existingNotes}` : block,
+        active_issue: openIssue || null
+      };
+    }
+  }
+
+  return trolley;
+};
+
 router.get('/:id', async (req, res) => {
   try {
-    const trolley = await queryOne(`
+    let trolley = await queryOne(`
       SELECT t.*,
         COALESCE(t.maintenance_reason, (
           SELECT title FROM issues WHERE trolley_id = t.id AND status = 'OPEN' ORDER BY created_at DESC LIMIT 1
         )) as maintenance_reason
       FROM trolleys t
-      WHERE t.id = ?
-    `, [req.params.id]);
+      WHERE t.id = ? OR UPPER(t.trolley_code) = UPPER(?)
+    `, [req.params.id, req.params.id]);
     if (!trolley) return res.status(404).json({ error: 'Trolley not found' });
+
+    trolley = await enrichTrolleyWithMaintenanceDetails(trolley);
 
     const recentLogs = await queryAll(`
       SELECT ml.*, u.name as performer_name
@@ -107,6 +156,8 @@ router.get('/code/:code', async (req, res) => {
       `, [`%${cleanCode}%`]);
     }
     if (!trolley) return res.status(404).json({ error: 'Trolley not found' });
+    
+    trolley = await enrichTrolleyWithMaintenanceDetails(trolley);
     res.json(trolley);
   } catch (err) {
     res.status(500).json({ error: err.message });
