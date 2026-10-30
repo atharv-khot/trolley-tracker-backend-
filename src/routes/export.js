@@ -75,6 +75,7 @@ const handleTrolleysExport = async (req, res) => {
         { header: 'Location', key: 'location' },
         { header: 'Status', key: 'status' },
         { header: 'Condition', key: 'condition' },
+        { header: 'Maintenance Reason', key: 'maintenance_reason' },
         { header: 'Last Service Date', key: 'formatted_last_service' },
         { header: 'Upcoming Maintenance Date', key: 'formatted_next_due' },
         { header: 'Registration Date', key: 'formatted_created' },

@@ -53,9 +53,14 @@ router.post('/', async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', ?)
     `, [id, trolley_id, req.user.id, title, description, severity, photo_url, now]);
 
-    if (severity === 'HIGH' || severity === 'CRITICAL') {
-      await runQuery("UPDATE trolleys SET condition = 'POOR', status = 'UNDER_MAINTENANCE', updated_at = ? WHERE id = ?", [now, trolley_id]);
-    }
+    const reason = description ? `${title}: ${description}` : title;
+    const cond = severity === 'CRITICAL' ? 'CRITICAL' : (severity === 'LOW' ? 'FAIR' : 'POOR');
+
+    // Any reported issue grounds the trolley under maintenance with reason
+    await runQuery(
+      "UPDATE trolleys SET condition = ?, status = 'UNDER_MAINTENANCE', maintenance_reason = ?, updated_at = ? WHERE id = ?",
+      [cond, reason, now, trolley_id]
+    );
 
     res.status(201).json({ id, message: 'Issue reported successfully' });
   } catch (err) {
@@ -67,11 +72,27 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { status, resolved_by, resolved_at } = req.body;
+    const now = new Date().toISOString();
     
     await runQuery(`
       UPDATE issues SET status = COALESCE(?, status), resolved_by = COALESCE(?, resolved_by), resolved_at = COALESCE(?, resolved_at)
       WHERE id = ?
-    `, [status, resolved_by, resolved_at, req.params.id]);
+    `, [status, resolved_by || req.user.id, resolved_at || now, req.params.id]);
+
+    // If issue resolved or closed, check if trolley has any other open issues
+    if (status === 'RESOLVED' || status === 'CLOSED') {
+      const issue = await queryOne('SELECT trolley_id FROM issues WHERE id = ?', [req.params.id]);
+      if (issue && issue.trolley_id) {
+        const remainingOpen = await queryAll("SELECT id, title, description FROM issues WHERE trolley_id = ? AND status = 'OPEN' AND id != ?", [issue.trolley_id, req.params.id]);
+        if (!remainingOpen || remainingOpen.length === 0) {
+          await runQuery("UPDATE trolleys SET status = 'ACTIVE', condition = 'GOOD', maintenance_reason = NULL, updated_at = ? WHERE id = ?", [now, issue.trolley_id]);
+        } else {
+          // Update reason to the remaining open issue
+          const nextReason = remainingOpen[0].description ? `${remainingOpen[0].title}: ${remainingOpen[0].description}` : remainingOpen[0].title;
+          await runQuery("UPDATE trolleys SET maintenance_reason = ?, updated_at = ? WHERE id = ?", [nextReason, now, issue.trolley_id]);
+        }
+      }
+    }
 
     res.json({ message: 'Issue updated successfully' });
   } catch (err) {

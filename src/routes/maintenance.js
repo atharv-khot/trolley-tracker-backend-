@@ -89,7 +89,33 @@ router.post('/', async (req, res) => {
 
     // Auto-update trolley based on type and record last service date
     if (type === 'REPAIR' || type === 'REPLACEMENT') {
-      await runQuery("UPDATE trolleys SET condition = 'GOOD', status = 'ACTIVE', last_service_date = ?, updated_at = ? WHERE id = ?", [now, now, trolley_id]);
+      await runQuery("UPDATE trolleys SET condition = 'GOOD', status = 'ACTIVE', maintenance_reason = NULL, last_service_date = ?, updated_at = ? WHERE id = ?", [now, now, trolley_id]);
+      
+      // Auto-resolve any open issues for this trolley
+      try {
+        await runQuery("UPDATE issues SET status = 'RESOLVED', resolved_by = ?, resolved_at = ? WHERE trolley_id = ? AND status = 'OPEN'", [req.user.id, now, trolley_id]);
+      } catch (issueErr) {
+        console.warn('[Maintenance] Auto-resolve issues warning:', issueErr.message);
+      }
+    } else if (type === 'INSPECTION') {
+      let defectItems = [];
+      if (Array.isArray(checklist_json)) {
+        defectItems = checklist_json.filter(i => i.status === 'DEFECT');
+      } else if (typeof checklist_json === 'string') {
+        try {
+          const parsed = JSON.parse(checklist_json);
+          if (Array.isArray(parsed)) defectItems = parsed.filter(i => i.status === 'DEFECT');
+        } catch (e) {}
+      }
+
+      if (defectItems.length > 0) {
+        const defectSummary = defectItems.map(d => `${d.name}${d.remarks ? ': ' + d.remarks : ''}`).join('; ');
+        const defectReason = `Inspection Defect: ${defectSummary}`;
+        await runQuery("UPDATE trolleys SET condition = 'POOR', status = 'UNDER_MAINTENANCE', maintenance_reason = ?, last_service_date = ?, updated_at = ? WHERE id = ?", [defectReason, now, now, trolley_id]);
+      } else {
+        // Inspection completed with all OK
+        await runQuery("UPDATE trolleys SET condition = 'GOOD', status = 'ACTIVE', maintenance_reason = NULL, last_service_date = ?, updated_at = ? WHERE id = ?", [now, now, trolley_id]);
+      }
     } else if (type === 'CLEANING') {
       await runQuery("UPDATE trolleys SET status = 'ACTIVE', last_service_date = ?, updated_at = ? WHERE id = ?", [now, now, trolley_id]);
     } else {
