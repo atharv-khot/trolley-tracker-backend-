@@ -10,10 +10,10 @@ router.get('/', async (req, res) => {
   try {
     const { trolley_id, severity, status } = req.query;
     let query = `
-      SELECT i.*, t.trolley_code, u.name as reporter_name
+      SELECT i.*, t.trolley_code, COALESCE(i.reporter_name, u.name) as reporter_name
       FROM issues i
       JOIN trolleys t ON i.trolley_id = t.id
-      JOIN users u ON i.reported_by = u.id
+      LEFT JOIN users u ON i.reported_by = u.id
       WHERE 1=1
     `;
     const params = [];
@@ -42,27 +42,32 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { trolley_id, title, description, severity, photo_url } = req.body;
+    const { trolley_id, title, description, severity, photo_url, reporter_name, department } = req.body;
     if (!trolley_id || !title || !severity) return res.status(400).json({ error: 'Trolley ID, title, and severity are required' });
+
+    // Compulsory Checkpoint: Reporter Name & Department
+    const effectiveReporterName = (reporter_name && reporter_name.trim()) || req.user.name || 'Operator';
+    const effectiveDepartment = (department && department.trim()) || 'Production';
 
     const id = generateId();
     const now = new Date().toISOString();
 
     await runQuery(`
-      INSERT INTO issues (id, trolley_id, reported_by, title, description, severity, photo_url, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', ?)
-    `, [id, trolley_id, req.user.id, title, description, severity, photo_url, now]);
+      INSERT INTO issues (id, trolley_id, reported_by, reporter_name, department, title, description, severity, photo_url, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?)
+    `, [id, trolley_id, req.user.id, effectiveReporterName, effectiveDepartment, title, description, severity, photo_url, now]);
 
-    const reason = description ? `${title}: ${description}` : title;
+    const repInfo = `${effectiveReporterName} (${effectiveDepartment})`;
+    const reason = description ? `${title}: ${description} [${repInfo}]` : `${title} [${repInfo}]`;
     const cond = severity === 'CRITICAL' ? 'CRITICAL' : (severity === 'LOW' ? 'FAIR' : 'POOR');
 
-    // Any reported issue grounds the trolley under maintenance with reason
+    // Any reported issue grounds the trolley under maintenance with reason and operator checkpoint info
     await runQuery(
       "UPDATE trolleys SET condition = ?, status = 'UNDER_MAINTENANCE', maintenance_reason = ?, updated_at = ? WHERE id = ?",
       [cond, reason, now, trolley_id]
     );
 
-    res.status(201).json({ id, message: 'Issue reported successfully' });
+    res.status(201).json({ id, message: 'Issue reported successfully', reporter_name: effectiveReporterName, department: effectiveDepartment });
   } catch (err) {
     console.error('Error reporting issue:', err);
     res.status(500).json({ error: err ? (err.message || String(err)) : 'Failed to report issue' });

@@ -49,7 +49,7 @@ const enrichTrolleyWithMaintenanceDetails = async (trolley) => {
   if (!trolley || trolley.status !== 'UNDER_MAINTENANCE') return trolley;
   
   const openIssue = await queryOne(`
-    SELECT i.*, u.name as reporter_name
+    SELECT i.*, COALESCE(i.reporter_name, u.name) as reporter_name
     FROM issues i
     LEFT JOIN users u ON i.reported_by = u.id
     WHERE i.trolley_id = ? AND i.status = 'OPEN'
@@ -59,6 +59,7 @@ const enrichTrolleyWithMaintenanceDetails = async (trolley) => {
   let title = openIssue ? openIssue.title : '';
   let desc = openIssue ? openIssue.description : '';
   let reporter = openIssue ? openIssue.reporter_name : '';
+  let dept = openIssue && openIssue.department ? openIssue.department : '';
   let date = openIssue && openIssue.created_at ? new Date(openIssue.created_at).toLocaleString('en-GB') : '';
 
   if (!title && trolley.maintenance_reason) {
@@ -75,7 +76,8 @@ const enrichTrolleyWithMaintenanceDetails = async (trolley) => {
     const header = '⚠️ WHY THIS TROLLEY CAME FOR MAINTENANCE:';
     const titleLine = title ? `• Title: ${title.trim()}` : '';
     const descLine = desc && desc !== title ? `• Description: ${desc.trim()}` : '';
-    const metaLine = [reporter ? `Reported by: ${reporter}` : '', date].filter(Boolean).join(' | ');
+    const repDeptStr = [reporter ? `Reported by: ${reporter}` : '', dept ? `Dept: ${dept}` : ''].filter(Boolean).join(' | ');
+    const metaLine = [repDeptStr, date].filter(Boolean).join(' | ');
 
     const block = [header, titleLine, descLine, metaLine].filter(Boolean).join('\n');
     const existingNotes = trolley.notes || '';
@@ -107,7 +109,7 @@ router.get('/:id', async (req, res) => {
     trolley = await enrichTrolleyWithMaintenanceDetails(trolley);
 
     const recentLogs = await queryAll(`
-      SELECT ml.*, u.name as performer_name
+      SELECT ml.*, COALESCE(ml.performer_name, u.name) as performer_name
       FROM maintenance_logs ml
       LEFT JOIN users u ON ml.performed_by = u.id
       WHERE ml.trolley_id = ?
@@ -115,7 +117,7 @@ router.get('/:id', async (req, res) => {
     `, [trolley.id]);
 
     const recentIssues = await queryAll(`
-      SELECT i.*, u.name as reporter_name
+      SELECT i.*, COALESCE(i.reporter_name, u.name) as reporter_name
       FROM issues i
       LEFT JOIN users u ON i.reported_by = u.id
       WHERE i.trolley_id = ?

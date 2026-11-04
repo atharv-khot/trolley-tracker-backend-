@@ -11,10 +11,10 @@ router.get('/', async (req, res) => {
   try {
     const { trolley_id, type, status, start_date, end_date } = req.query;
     let query = `
-      SELECT ml.*, t.trolley_code, u.name as performer_name
+      SELECT ml.*, t.trolley_code, COALESCE(ml.performer_name, u.name) as performer_name
       FROM maintenance_logs ml
       JOIN trolleys t ON ml.trolley_id = t.id
-      JOIN users u ON ml.performed_by = u.id
+      LEFT JOIN users u ON ml.performed_by = u.id
       WHERE 1=1
     `;
     const params = [];
@@ -48,10 +48,10 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const log = await queryOne(`
-      SELECT ml.*, t.trolley_code, u.name as performer_name
+      SELECT ml.*, t.trolley_code, COALESCE(ml.performer_name, u.name) as performer_name
       FROM maintenance_logs ml
       JOIN trolleys t ON ml.trolley_id = t.id
-      JOIN users u ON ml.performed_by = u.id
+      LEFT JOIN users u ON ml.performed_by = u.id
       WHERE ml.id = ?
     `, [req.params.id]);
     if (!log) return res.status(404).json({ error: 'Log not found' });
@@ -72,10 +72,16 @@ router.post('/', async (req, res) => {
       after_photo_url,
       checklist_json,
       status,
+      performer_name,
+      department,
       trigger_email,
       notify_email
     } = req.body;
     if (!trolley_id || !type) return res.status(400).json({ error: 'Trolley ID and Type are required' });
+
+    // Compulsory Checkpoint: Technician/Inspector Name & Department
+    const effectivePerformerName = (performer_name && performer_name.trim()) || req.user.name || 'Technician';
+    const effectiveDepartment = (department && department.trim()) || 'Maintenance';
 
     const id = generateId();
     const now = new Date().toISOString();
@@ -83,9 +89,9 @@ router.post('/', async (req, res) => {
     const checklistStr = typeof checklist_json === 'object' ? JSON.stringify(checklist_json) : (checklist_json || null);
 
     await runQuery(`
-      INSERT INTO maintenance_logs (id, trolley_id, performed_by, type, description, parts_replaced, before_photo_url, after_photo_url, checklist_json, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [id, trolley_id, req.user.id, type, description, parts_replaced, before_photo_url, after_photo_url, checklistStr, status || 'COMPLETED', now]);
+      INSERT INTO maintenance_logs (id, trolley_id, performed_by, performer_name, department, type, description, parts_replaced, before_photo_url, after_photo_url, checklist_json, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [id, trolley_id, req.user.id, effectivePerformerName, effectiveDepartment, type, description, parts_replaced, before_photo_url, after_photo_url, checklistStr, status || 'COMPLETED', now]);
 
     // Auto-update trolley based on type and record last service date
     if (type === 'REPAIR' || type === 'REPLACEMENT') {

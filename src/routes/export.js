@@ -119,7 +119,8 @@ router.get('/trolleys/excel', verifyToken, (req, res) => { req.query.format = 'e
 const handleMaintenanceExport = async (req, res) => {
   try {
     const logs = await queryAll(`
-      SELECT m.*, t.trolley_code, u.name as performed_by_name 
+      SELECT m.*, t.trolley_code, COALESCE(m.performer_name, u.name) as performed_by_name,
+             COALESCE(m.department, 'Maintenance') as department
       FROM maintenance_logs m 
       LEFT JOIN trolleys t ON m.trolley_id = t.id 
       LEFT JOIN users u ON m.performed_by = u.id
@@ -135,7 +136,8 @@ const handleMaintenanceExport = async (req, res) => {
         { header: 'Trolley Code', key: 'trolley_code' },
         { header: 'Maintenance Date', key: 'formatted_date' },
         { header: 'Service Type', key: 'type' },
-        { header: 'Technician', key: 'performed_by_name' },
+        { header: 'Technician Name', key: 'performed_by_name' },
+        { header: 'Department', key: 'department' },
         { header: 'Parts Replaced', key: 'parts_replaced' },
         { header: 'Status', key: 'status' },
         { header: 'Description / Remarks', key: 'description' }
@@ -173,7 +175,8 @@ router.get('/maintenance/excel', verifyToken, (req, res) => { req.query.format =
 const handleIssuesExport = async (req, res) => {
   try {
     const issues = await queryAll(`
-      SELECT i.*, t.trolley_code, u1.name as reported_by_name, u2.name as resolved_by_name
+      SELECT i.*, t.trolley_code, COALESCE(i.reporter_name, u1.name) as reported_by_name,
+             COALESCE(i.department, 'Production') as department, u2.name as resolved_by_name
       FROM issues i
       LEFT JOIN trolleys t ON i.trolley_id = t.id
       LEFT JOIN users u1 ON i.reported_by = u1.id
@@ -192,7 +195,8 @@ const handleIssuesExport = async (req, res) => {
         { header: 'Title', key: 'title' },
         { header: 'Severity', key: 'severity' },
         { header: 'Status', key: 'status' },
-        { header: 'Reported By', key: 'reported_by_name' },
+        { header: 'Reporter Name', key: 'reported_by_name' },
+        { header: 'Department', key: 'department' },
         { header: 'Resolved By', key: 'resolved_by_name' },
         { header: 'Resolved Date', key: 'formatted_resolved_date' },
         { header: 'Description', key: 'description' }

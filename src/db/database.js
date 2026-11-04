@@ -104,11 +104,15 @@ const initDB = async () => {
         );
       `);
 
-      // Migration: Ensure last_service_date and maintenance_reason columns exist and backfill
+      // Migration: Ensure last_service_date, maintenance_reason, and operator checkpoint columns exist and backfill
       try {
         await pgPool.query('ALTER TABLE trolleys ADD COLUMN IF NOT EXISTS last_service_date VARCHAR(64);');
         await pgPool.query('ALTER TABLE trolleys ADD COLUMN IF NOT EXISTS maintenance_reason TEXT;');
         await pgPool.query("UPDATE trolleys SET last_service_date = created_at WHERE last_service_date IS NULL OR last_service_date = '';");
+        await pgPool.query('ALTER TABLE issues ADD COLUMN IF NOT EXISTS department VARCHAR(64);');
+        await pgPool.query('ALTER TABLE issues ADD COLUMN IF NOT EXISTS reporter_name VARCHAR(128);');
+        await pgPool.query('ALTER TABLE maintenance_logs ADD COLUMN IF NOT EXISTS department VARCHAR(64);');
+        await pgPool.query('ALTER TABLE maintenance_logs ADD COLUMN IF NOT EXISTS performer_name VARCHAR(128);');
       } catch (colErr) {
         console.log('[DB] Column check:', colErr.message);
       }
@@ -118,6 +122,8 @@ const initDB = async () => {
           id VARCHAR(64) PRIMARY KEY,
           trolley_id VARCHAR(64) NOT NULL,
           performed_by VARCHAR(64) NOT NULL,
+          performer_name VARCHAR(128),
+          department VARCHAR(64),
           type VARCHAR(64),
           description TEXT,
           parts_replaced TEXT,
@@ -134,6 +140,8 @@ const initDB = async () => {
           id VARCHAR(64) PRIMARY KEY,
           trolley_id VARCHAR(64) NOT NULL,
           reported_by VARCHAR(64) NOT NULL,
+          reporter_name VARCHAR(128),
+          department VARCHAR(64),
           title VARCHAR(255) NOT NULL,
           description TEXT,
           severity VARCHAR(64),
@@ -250,16 +258,24 @@ const initDB = async () => {
   // Migration for existing SQLite database
   try {
     db.run('ALTER TABLE trolleys ADD COLUMN last_service_date TEXT;');
-  } catch (e) {
-    // Column already exists
-  }
+  } catch (e) {}
   try {
     db.run('ALTER TABLE trolleys ADD COLUMN maintenance_reason TEXT;');
-  } catch (e) {
-    // Column already exists
-  }
+  } catch (e) {}
   try {
     db.run("UPDATE trolleys SET last_service_date = created_at WHERE last_service_date IS NULL OR last_service_date = '';");
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE issues ADD COLUMN department TEXT;');
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE issues ADD COLUMN reporter_name TEXT;');
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE maintenance_logs ADD COLUMN department TEXT;');
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE maintenance_logs ADD COLUMN performer_name TEXT;');
   } catch (e) {}
 
   db.run(`
@@ -267,6 +283,8 @@ const initDB = async () => {
       id TEXT PRIMARY KEY,
       trolley_id TEXT NOT NULL,
       performed_by TEXT NOT NULL,
+      performer_name TEXT,
+      department TEXT,
       type TEXT CHECK(type IN ('REPAIR','INSPECTION','CLEANING','REPLACEMENT')),
       description TEXT,
       parts_replaced TEXT,
@@ -285,6 +303,8 @@ const initDB = async () => {
       id TEXT PRIMARY KEY,
       trolley_id TEXT NOT NULL,
       reported_by TEXT NOT NULL,
+      reporter_name TEXT,
+      department TEXT,
       title TEXT NOT NULL,
       description TEXT,
       severity TEXT CHECK(severity IN ('LOW','MEDIUM','HIGH','CRITICAL')),
