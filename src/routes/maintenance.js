@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
   try {
     const { trolley_id, type, status, start_date, end_date } = req.query;
     let query = `
-      SELECT ml.*, t.trolley_code, COALESCE(ml.performer_name, u.name) as performer_name
+      SELECT ml.*, t.trolley_code, COALESCE(ml.performer_name, u.name) as displayed_performer_name, ml.department
       FROM maintenance_logs ml
       JOIN trolleys t ON ml.trolley_id = t.id
       LEFT JOIN users u ON ml.performed_by = u.id
@@ -48,7 +48,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const log = await queryOne(`
-      SELECT ml.*, t.trolley_code, COALESCE(ml.performer_name, u.name) as performer_name
+      SELECT ml.*, t.trolley_code, COALESCE(ml.performer_name, u.name) as displayed_performer_name, ml.department
       FROM maintenance_logs ml
       JOIN trolleys t ON ml.trolley_id = t.id
       LEFT JOIN users u ON ml.performed_by = u.id
@@ -187,10 +187,12 @@ router.post('/:id/trigger-email', async (req, res) => {
   try {
     const { recipient_email } = req.body;
     const log = await queryOne(`
-      SELECT ml.*, t.trolley_code, u.name as performer_name, u.email as performer_email
+      SELECT ml.*, t.trolley_code,
+        COALESCE(ml.performer_name, u.name) as performer_name,
+        u.email as performer_email
       FROM maintenance_logs ml
       JOIN trolleys t ON ml.trolley_id = t.id
-      JOIN users u ON ml.performed_by = u.id
+      LEFT JOIN users u ON ml.performed_by = u.id
       WHERE ml.id = ?
     `, [req.params.id]);
 
