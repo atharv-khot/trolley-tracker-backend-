@@ -230,4 +230,16 @@ router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
   }
 });
 
+router.delete('/:id/permanent', requireRole('ADMIN'), async (req, res) => {
+  try {
+    await runQuery("DELETE FROM maintenance_schedules WHERE trolley_id = ?", [req.params.id]);
+    await runQuery("DELETE FROM maintenance_logs WHERE trolley_id = ?", [req.params.id]);
+    await runQuery("DELETE FROM issues WHERE trolley_id = ?", [req.params.id]);
+    await runQuery("DELETE FROM trolleys WHERE id = ?", [req.params.id]);
+    res.json({ message: 'Trolley deleted permanently' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
