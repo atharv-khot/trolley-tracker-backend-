@@ -188,30 +188,23 @@ const initDB = async () => {
       // Seed default trolleys if table is empty
       const trolleyCount = await pgPool.query('SELECT COUNT(*) as count FROM trolleys');
       if (parseInt(trolleyCount.rows[0].count, 10) === 0) {
-        console.log('[DB] Seeding initial 102 plant trolleys in PostgreSQL...');
-        const fullTrolleyDefs = [
-          ...Array.from({ length: 40 }, (_, i) => ({ code: `F-${i + 1}`, location: 'Zone A - Front Bumper', notes: `Front Bumper Carrier Trolley F-${i + 1}` })),
-          ...Array.from({ length: 30 }, (_, i) => ({ code: `N-${i + 1}`, location: 'Zone B - Main Line', notes: `Production Carrier Trolley N-${i + 1}` })),
-          ...Array.from({ length: 20 }, (_, i) => ({ code: `R-${i + 1}`, location: 'Zone C - Rear Bumper', notes: `Rear Bumper Carrier Trolley R-${i + 1}` })),
-          ...Array.from({ length: 12 }, (_, i) => ({ code: `H-${i + 1}`, location: 'Zone D - Heavy Duty', notes: `Heavy Duty Carrier Trolley H-${i + 1}` }))
+        console.log('[DB] Seeding initial trolleys in PostgreSQL...');
+        const initialTrolleys = [
+          { id: 'trl-001', code: 'TRL-001', location: 'Zone A Assembly', status: 'ACTIVE', condition: 'GOOD', notes: 'Front Bumper Carrier' },
+          { id: 'trl-002', code: 'TRL-002', location: 'Zone B Paint', status: 'ACTIVE', condition: 'GOOD', notes: 'Rear Bumper Carrier' },
+          { id: 'trl-003', code: 'TRL-003', location: 'Zone C Storage', status: 'UNDER_MAINTENANCE', condition: 'FAIR', notes: 'Wheel bearing check due' },
+          { id: 'trl-004', code: 'TRL-004', location: 'Zone A Assembly', status: 'ACTIVE', condition: 'GOOD', notes: 'Heavy duty trolley' },
+          { id: 'trl-005', code: 'TRL-005', location: 'Zone D Shipping', status: 'ACTIVE', condition: 'GOOD', notes: 'Buffer stock carrier' }
         ];
 
-        for (const t of fullTrolleyDefs) {
+        for (const t of initialTrolleys) {
           await pgPool.query(`
             INSERT INTO trolleys (id, trolley_code, location, status, condition, notes, created_at, updated_at)
-            VALUES ($1, $2, $3, 'ACTIVE', 'GOOD', $4, $5, $6)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (trolley_code) DO NOTHING
-          `, [`trolley-${t.code}`, t.code, t.location, t.notes, now, now]);
+          `, [t.id, t.code, t.location, t.status, t.condition, t.notes, now, now]);
         }
       }
-
-      // Cleanup any legacy dummy TRL- trolleys in PostgreSQL
-      try {
-        await pgPool.query("DELETE FROM maintenance_schedules WHERE trolley_id IN (SELECT id FROM trolleys WHERE trolley_code LIKE 'TRL-%');");
-        await pgPool.query("DELETE FROM maintenance_logs WHERE trolley_id IN (SELECT id FROM trolleys WHERE trolley_code LIKE 'TRL-%');");
-        await pgPool.query("DELETE FROM issues WHERE trolley_id IN (SELECT id FROM trolleys WHERE trolley_code LIKE 'TRL-%');");
-        await pgPool.query("DELETE FROM trolleys WHERE trolley_code LIKE 'TRL-%';");
-      } catch (cleanErr) {}
 
       return pgPool;
     } catch (pgError) {
@@ -359,39 +352,6 @@ const initDB = async () => {
         VALUES (?, ?, ?, ?, ?, ?)
       `, [u.id, u.name, u.email, u.password, u.role, now]);
     }
-
-    // Auto-seed all 102 plant trolleys if trolley count is low
-    const tCountStmt = db.prepare('SELECT COUNT(*) as count FROM trolleys');
-    let currentTrolleyCount = 0;
-    if (tCountStmt.step()) {
-      currentTrolleyCount = tCountStmt.getAsObject().count || 0;
-    }
-    tCountStmt.free();
-
-    if (currentTrolleyCount < 20) {
-      console.log('[DB] Auto-seeding 102 plant trolleys in SQLite...');
-      const fullTrolleyDefs = [
-        ...Array.from({ length: 40 }, (_, i) => ({ code: `F-${i + 1}`, location: 'Zone A - Front Bumper', notes: `Front Bumper Carrier Trolley F-${i + 1}` })),
-        ...Array.from({ length: 30 }, (_, i) => ({ code: `N-${i + 1}`, location: 'Zone B - Main Line', notes: `Production Carrier Trolley N-${i + 1}` })),
-        ...Array.from({ length: 20 }, (_, i) => ({ code: `R-${i + 1}`, location: 'Zone C - Rear Bumper', notes: `Rear Bumper Carrier Trolley R-${i + 1}` })),
-        ...Array.from({ length: 12 }, (_, i) => ({ code: `H-${i + 1}`, location: 'Zone D - Heavy Duty', notes: `Heavy Duty Carrier Trolley H-${i + 1}` }))
-      ];
-
-      for (const t of fullTrolleyDefs) {
-        db.run(`
-          INSERT OR IGNORE INTO trolleys (id, trolley_code, location, status, condition, notes, created_at, updated_at)
-          VALUES (?, ?, ?, 'ACTIVE', 'GOOD', ?, ?, ?)
-        `, [`trolley-${t.code}`, t.code, t.location, t.notes, now, now]);
-      }
-    }
-
-    // Cleanup any legacy dummy TRL- trolleys in SQLite
-    try {
-      db.run("DELETE FROM maintenance_schedules WHERE trolley_id IN (SELECT id FROM trolleys WHERE trolley_code LIKE 'TRL-%');");
-      db.run("DELETE FROM maintenance_logs WHERE trolley_id IN (SELECT id FROM trolleys WHERE trolley_code LIKE 'TRL-%');");
-      db.run("DELETE FROM issues WHERE trolley_id IN (SELECT id FROM trolleys WHERE trolley_code LIKE 'TRL-%');");
-      db.run("DELETE FROM trolleys WHERE trolley_code LIKE 'TRL-%';");
-    } catch (e) {}
   } catch (seedErr) {
     console.error('Error seeding SQLite admin users:', seedErr.message);
   }

@@ -109,10 +109,7 @@ router.get('/:id', async (req, res) => {
     trolley = await enrichTrolleyWithMaintenanceDetails(trolley);
 
     const recentLogs = await queryAll(`
-      SELECT ml.id, ml.trolley_id, ml.type, ml.description, ml.parts_replaced,
-             ml.before_photo_url, ml.after_photo_url, ml.checklist_json,
-             ml.status, ml.created_at, ml.department,
-             COALESCE(ml.performer_name, u.name) as performer_name
+      SELECT ml.*, COALESCE(ml.performer_name, u.name) as performer_name
       FROM maintenance_logs ml
       LEFT JOIN users u ON ml.performed_by = u.id
       WHERE ml.trolley_id = ?
@@ -225,18 +222,6 @@ router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
   try {
     await runQuery("UPDATE trolleys SET status = 'RETIRED', updated_at = ? WHERE id = ?", [new Date().toISOString(), req.params.id]);
     res.json({ message: 'Trolley retired successfully' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.delete('/:id/permanent', requireRole('ADMIN'), async (req, res) => {
-  try {
-    await runQuery("DELETE FROM maintenance_schedules WHERE trolley_id = ?", [req.params.id]);
-    await runQuery("DELETE FROM maintenance_logs WHERE trolley_id = ?", [req.params.id]);
-    await runQuery("DELETE FROM issues WHERE trolley_id = ?", [req.params.id]);
-    await runQuery("DELETE FROM trolleys WHERE id = ?", [req.params.id]);
-    res.json({ message: 'Trolley deleted permanently' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

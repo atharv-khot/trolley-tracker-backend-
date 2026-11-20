@@ -236,16 +236,14 @@ const handleAllExport = async (req, res) => {
   try {
     const trolleys = await queryAll('SELECT * FROM trolleys ORDER BY trolley_code ASC', []);
     const logs = await queryAll(`
-      SELECT m.*, t.trolley_code, COALESCE(m.performer_name, u.name) as performed_by_name,
-             COALESCE(m.department, 'Maintenance') as department
+      SELECT m.*, t.trolley_code, u.name as performed_by_name 
       FROM maintenance_logs m 
       LEFT JOIN trolleys t ON m.trolley_id = t.id 
       LEFT JOIN users u ON m.performed_by = u.id
       ORDER BY m.created_at DESC
     `, []);
     const issues = await queryAll(`
-      SELECT i.*, t.trolley_code, COALESCE(i.reporter_name, u1.name) as reported_by_name,
-             COALESCE(i.department, 'Production') as department, u2.name as resolved_by_name
+      SELECT i.*, t.trolley_code, u1.name as reported_by_name, u2.name as resolved_by_name
       FROM issues i
       LEFT JOIN trolleys t ON i.trolley_id = t.id
       LEFT JOIN users u1 ON i.reported_by = u1.id
